@@ -1,0 +1,67 @@
+{
+  "name": "auto-supervisor",
+  "version": "0.3.0",
+  "description": "Local-first automation supervisor with scheduling, run history, logs, webhooks, and a dashboard.",
+  "homepage": "https://github.com/zhendalf/auto#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhendalf/auto.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zhendalf/auto/issues"
+  },
+  "module": "index.ts",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "auto": "cli/main.ts"
+  },
+  "exports": {
+    ".": "./index.ts"
+  },
+  "files": [
+    "cli",
+    "supervisor",
+    "ui/dist",
+    "index.ts",
+    "paths.ts",
+    "README.md",
+    "SECURITY.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "tsconfig.package.json"
+  ],
+  "keywords": [
+    "automation",
+    "cron",
+    "scheduler",
+    "bun",
+    "webhook",
+    "local-first"
+  ],
+  "engines": {
+    "bun": ">=1.3.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "typecheck": "bunx tsc --noEmit",
+    "typecheck:package": "bunx tsc --noEmit -p tsconfig.package.json",
+    "build:ui": "bun run --cwd ui build",
+    "verify": "bun run typecheck && bun run --cwd ui typecheck && bun test",
+    "test:package": "bun test",
+    "verify:package": "bun run typecheck:package && bun run --cwd ui typecheck && bun run test:package",
+    "prepack": "bun run build:ui && bun run verify:package"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/prompts": "^2.4.9"
+  },
+  "dependencies": {
+    "commander": "^14.0.3",
+    "picocolors": "^1.1.1",
+    "prompts": "^2.4.2",
+    "zod": "^4.4.1"
+  }
+}

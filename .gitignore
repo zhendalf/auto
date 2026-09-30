@@ -1,0 +1,43 @@
+# dependencies (bun install)
+node_modules
+
+# supervisor runtime state (DB, run logs, secrets, lock, state files)
+data/
+.auto-runtime/
+
+# output
+out
+dist
+*.tgz
+
+# SPA build + deps (ui/ is its own package)
+ui/dist/
+ui/node_modules/
+
+# code coverage
+coverage
+*.lcov
+
+# logs
+logs
+*.log
+*.log.old
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# IntelliJ based IDEs
+.idea
+
+# Finder (MacOS) folder config
+.DS_Store

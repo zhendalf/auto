@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    # macOS is the verified platform. Linux and Windows are not tested here.
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # Pinned: the suite depends on Bun's process-group, timer and cron
+          # behavior, so a new Bun release must not turn CI red on its own.
+          # Bump it deliberately after running the suite on the new version.
+          bun-version: 1.4.2
+
+      - name: Bun version
+        run: bun --version
+
+      - name: Install root dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install UI dependencies
+        run: bun install --frozen-lockfile
+        working-directory: ui
+
+      - name: Typecheck (supervisor, CLI, tests)
+        run: bun run typecheck
+
+      - name: Typecheck (UI)
+        run: bun run --cwd ui typecheck
+
+      # The suite starts real supervisors on fixed local ports, so it is not
+      # run in parallel with anything else on the runner.
+      - name: Test
+        run: bun test
+
+      - name: Build UI
+        run: bun run build:ui
+
+      # `bun pm pack` runs the prepack script (UI build and the full
+      # verification again), so this doubles as a packaging check.
+      - name: Check the package contents
+        run: bun pm pack --dry-run

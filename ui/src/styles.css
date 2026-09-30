@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+/*
+ * Colors are semantic tokens defined once for light and once for dark, so a
+ * component says `bg-surface text-muted` and follows the OS setting without
+ * per-element `dark:` variants. Muted and subtle text meet 4.5:1 on both
+ * their surfaces; each status pair (bg/fg) is above 7:1.
+ */
+:root {
+  color-scheme: light dark;
+
+  --page: #f7f7f5;
+  --surface: #ffffff;
+  --sunken: #efefec;
+  --fg: #171717;
+  --muted: #525252;
+  --subtle: #5f5f5f;
+  --line: #e3e3df;
+  --line-strong: #c9c9c3;
+  --link: #1d4ed8;
+  --accent: #1d4ed8;
+  --accent-hover: #1e40af;
+  --on-accent: #ffffff;
+  --focus: #1d4ed8;
+
+  --ok-bg: #dcfce7;
+  --ok-fg: #14532d;
+  --bad-bg: #fee2e2;
+  --bad-fg: #7f1d1d;
+  --warn-bg: #fef3c7;
+  --warn-fg: #713f12;
+  --orange-bg: #ffedd5;
+  --orange-fg: #7c2d12;
+  --info-bg: #dbeafe;
+  --info-fg: #1e3a8a;
+  --neutral-bg: #ececea;
+  --neutral-fg: #3f3f3f;
+
+  --log-bg: #101012;
+  --log-fg: #e6e6e6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0c0c0e;
+    --surface: #161619;
+    --sunken: #1f1f23;
+    --fg: #ececec;
+    --muted: #a8a8ae;
+    --subtle: #9a9aa1;
+    --line: #2a2a2f;
+    --line-strong: #3d3d44;
+    --link: #8ab4ff;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --on-accent: #ffffff;
+    --focus: #8ab4ff;
+
+    --ok-bg: #12351f;
+    --ok-fg: #86efac;
+    --bad-bg: #3f1519;
+    --bad-fg: #fca5a5;
+    --warn-bg: #3a2f0c;
+    --warn-fg: #fde68a;
+    --orange-bg: #3d2110;
+    --orange-fg: #fdba74;
+    --info-bg: #14274d;
+    --info-fg: #93c5fd;
+    --neutral-bg: #2a2a2f;
+    --neutral-fg: #d4d4d8;
+
+    --log-bg: #08080a;
+    --log-fg: #e6e6e6;
+  }
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-link: var(--link);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-ok-bg: var(--ok-bg);
+  --color-ok-fg: var(--ok-fg);
+  --color-bad-bg: var(--bad-bg);
+  --color-bad-fg: var(--bad-fg);
+  --color-warn-bg: var(--warn-bg);
+  --color-warn-fg: var(--warn-fg);
+  --color-orange-bg: var(--orange-bg);
+  --color-orange-fg: var(--orange-fg);
+  --color-info-bg: var(--info-bg);
+  --color-info-fg: var(--info-fg);
+  --color-neutral-bg: var(--neutral-bg);
+  --color-neutral-fg: var(--neutral-fg);
+  --color-log-bg: var(--log-bg);
+  --color-log-fg: var(--log-fg);
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* One visible focus treatment for every control, keyboard only. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* ANSI colors for the log viewer (tuned for the always-dark log background). */
+.ansi-fg-0 { color: #8a8a93; }
+.ansi-fg-1 { color: #f87171; }
+.ansi-fg-2 { color: #4ade80; }
+.ansi-fg-3 { color: #facc15; }
+.ansi-fg-4 { color: #60a5fa; }
+.ansi-fg-5 { color: #e879f9; }
+.ansi-fg-6 { color: #22d3ee; }
+.ansi-fg-7 { color: #e6e6e6; }
+.ansi-fg-8 { color: #a4a4ad; }
+.ansi-fg-9 { color: #fca5a5; }
+.ansi-fg-10 { color: #86efac; }
+.ansi-fg-11 { color: #fde047; }
+.ansi-fg-12 { color: #93c5fd; }
+.ansi-fg-13 { color: #f0abfc; }
+.ansi-fg-14 { color: #67e8f9; }
+.ansi-fg-15 { color: #ffffff; }
+.ansi-bg-0 { background: #3a3a40; }
+.ansi-bg-1 { background: #7f1d1d; }
+.ansi-bg-2 { background: #14532d; }
+.ansi-bg-3 { background: #713f12; }
+.ansi-bg-4 { background: #1e3a8a; }
+.ansi-bg-5 { background: #701a75; }
+.ansi-bg-6 { background: #155e75; }
+.ansi-bg-7 { background: #d4d4d8; color: #101012; }
+.ansi-bg-8 { background: #52525b; }
+.ansi-bg-9 { background: #b91c1c; }
+.ansi-bg-10 { background: #15803d; }
+.ansi-bg-11 { background: #a16207; }
+.ansi-bg-12 { background: #1d4ed8; }
+.ansi-bg-13 { background: #a21caf; }
+.ansi-bg-14 { background: #0e7490; }
+.ansi-bg-15 { background: #ffffff; color: #101012; }
+
+@keyframes auto-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.pulse-dot {
+  animation: auto-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

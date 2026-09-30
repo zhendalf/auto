@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create Local Automation"
+  short_description: "Build jobs for the local automation supervisor"
+  default_prompt: "Use $create-local-automation to add a safe scheduled job to my local automation supervisor."

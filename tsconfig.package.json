@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "index.ts",
+    "paths.ts",
+    "cli/**/*.ts",
+    "supervisor/**/*.ts"
+  ],
+  "exclude": [
+    "ui",
+    "node_modules",
+    "data"
+  ]
+}
