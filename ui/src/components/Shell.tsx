@@ -5,6 +5,7 @@ import { ConnectionBar } from "./ConnectionBar.tsx";
 import { ErrorBoundary } from "./ErrorBoundary.tsx";
 import { StatusPanel } from "./StatusPanel.tsx";
 import { timeZoneAbbreviation } from "../util/format.ts";
+import faviconUrl from "../favicon.svg";
 
 const NAV = [
   { to: "/jobs", label: "Jobs" },
@@ -37,7 +38,7 @@ export function Shell() {
       </a>
       <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line bg-surface px-4 py-2.5">
         <Link to="/jobs" className="flex items-center gap-2 text-base font-semibold tracking-tight">
-          <img src="/favicon.svg" alt="" width={20} height={20} className="h-5 w-5" />
+          <img src={faviconUrl} alt="" width={20} height={20} className="h-5 w-5" />
           Auto
         </Link>
         <nav aria-label="Main" className="flex gap-1 text-sm">

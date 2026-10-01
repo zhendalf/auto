@@ -11,7 +11,7 @@ export const NOT_SERVED_MESSAGE =
 
 /**
  * The bootstrap data, or null when the tag is missing, is not JSON, or has no
- * usable token (for example `vite preview` or a saved copy of the page).
+ * usable token (for example a saved copy of the page).
  * Never throws.
  */
 export function parseBootstrap(text: string | null | undefined): Bootstrap | null {

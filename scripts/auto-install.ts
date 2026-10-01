@@ -31,9 +31,8 @@ async function main(): Promise<void> {
   if (!Bun.version) throw new Error("Bun is required");
   if (ENV_PROBLEM) throw new Error(ENV_PROBLEM);
   if (!dryRun) ensureStateDirs();
+  // One install covers the dashboard too: the supervisor bundles ui/ itself (D-44).
   await run([process.execPath, "install", "--frozen-lockfile"]);
-  await run([process.execPath, "install", "--frozen-lockfile"], resolve(ROOT, "ui"));
-  await run([process.execPath, "run", "build"], resolve(ROOT, "ui"));
   await run([process.execPath, "supervisor/main.ts", "--check"]);
   if (dryRun) {
     process.stdout.write("dry-run complete; service registration, shim, and health verification skipped\n");

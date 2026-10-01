@@ -8,6 +8,7 @@ import { ApiClient, ApiError } from "../cli/client.ts";
 import { openerCommand, runUi } from "../cli/commands/ui.ts";
 import { runMigrations } from "../supervisor/db/migrate.ts";
 import { startServer, type ServerHandle } from "../supervisor/server.ts";
+import { staticUi } from "../supervisor/ui-bundle.ts";
 
 describe("openerCommand", () => {
   test("picks the opener per platform", () => {
@@ -34,7 +35,7 @@ async function boot(): Promise<Live> {
     runner: () => null,
     configStore: () => null,
     port: 0,
-    uiDistDir: join(tmp, "no-dist"),
+    ui: staticUi({}),
     tokenPath,
     dataDir: tmp,
     heartbeatMs: 60_000,

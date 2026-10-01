@@ -1,4 +1,4 @@
-# @automations/ui
+# Dashboard (`ui/`)
 
 The supervisor's React + Tailwind v4 dashboard. It is a single-page app that
 talks to the supervisor's `/api/*` and `/events`; it has no data of its own.
@@ -28,58 +28,45 @@ Because the page embeds the token, rotating it (`auto token rotate`) makes the
 open dashboard's requests fail with 401. The app then says "The API token
 changed. Reload this page to pick up the new one." and offers a Reload button.
 
-A page that carries no token (opened from `vite preview`, a static file server
+A page that carries no token (opened from a static file server
 or a saved copy) shows "This page was not served by the Auto supervisor. Open
 the dashboard with: auto ui" instead of an empty screen.
 
 ## Develop
 
-The supervisor must be running (`auto install`, or `bun supervisor/main.ts`
-with `AUTO_PORT` set for a scratch workspace). Then:
+There is no build step and no dev server. The supervisor bundles this
+directory in memory with Bun's bundler (`Bun.build` with `bun-plugin-tailwind`)
+when it starts, see `supervisor/ui-bundle.ts`. With `AUTO_UI_DEV=1` it watches
+`ui/` and bundles again on the next request after a change; reload the page to
+see your edit. Use a scratch workspace and port:
 
 ```sh
-bun run --cwd ui dev
+AUTO_HOME=/tmp/auto-dev bun cli/main.ts init
+AUTO_HOME=/tmp/auto-dev AUTO_PORT=17800 AUTO_UI_DEV=1 bun supervisor/main.ts
 ```
 
-Open http://127.0.0.1:5173. Vite serves the app with hot reload and injects the
-same bootstrap tag the supervisor does, reading the token from the workspace
-(`AUTO_DATA_DIR`, else `AUTO_HOME/data/.token`, else `~/.auto/data/.token`) each
-time the page loads, so reloading after a supervisor restart or a token
-rotation picks up the current token. It proxies `/api`, `/events` and
-`/healthz` to the supervisor (`AUTO_PORT`, default 7777) with the Host and
-Origin of the supervisor itself, so the supervisor's allowlist accepts dev
-requests without listing the dev port. The proxy adds no credentials: the page
-sends the bearer token itself. The dev page contains the token, so Vite must stay
-on localhost: it answers only requests whose `Host` is a loopback name, and if
-you start it with `--host` (or set `server.host`) it stops injecting the token
-and warns.
+Then open http://127.0.0.1:17800/. The dev page is served exactly like the
+production one (same Host and Origin checks, same token injection), so there is
+no proxy or dev token to configure.
 
-If the token file does not exist yet, Vite still starts and warns, and the page
-shows the "not served by the Auto supervisor" message until the supervisor has
-run once and you reload.
+If bundling fails, the error is printed on the supervisor's stderr and the page
+at `/` shows it. The API keeps working.
 
-## Build
+## The bundle
 
-```sh
-bun run --cwd ui build
-```
-
-Produces `ui/dist/index.html`, `ui/dist/favicon.svg` and `ui/dist/assets/*`
-(no source maps). The supervisor serves these directly: HTML with
-`Cache-Control: no-store`, hashed assets with `public, max-age=31536000,
+`index.html` is the entry point. The bundle is one HTML page plus hashed files
+under `/assets/` (JS, CSS, the favicon), with no source maps. HTML is served
+with `Cache-Control: no-store`, assets with `public, max-age=31536000,
 immutable`. The page must not use inline styles or scripts: the supervisor's
-Content-Security-Policy allows only same-origin ones.
-
-Do not use `vite preview` to try the production bundle: it serves the files
-only, with no supervisor behind it, no `/api` proxy and no token, so the app
-shows "This page was not served by the Auto supervisor". Build, then let the
-supervisor serve it and open the dashboard with `auto ui`.
+Content-Security-Policy allows only same-origin ones. Import assets from
+TypeScript (`import url from "../favicon.svg"`) instead of linking an absolute
+path, so the bundler hashes them.
 
 ## Typecheck and tests
 
 ```sh
-bun run --cwd ui typecheck      # the UI's own tsconfig (DOM + React types)
-bun test test/ui-*.test.ts      # pure helpers under ui/src/util (from the repo root)
+bun run typecheck:ui            # the UI's own tsconfig (DOM + React types)
+bun test test/ui-*.test.ts      # the bundle and the pure helpers under ui/src/util
 ```
 
 The UI has no component test framework. Logic that is worth testing lives in

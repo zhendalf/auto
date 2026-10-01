@@ -3,7 +3,7 @@ import { CODE } from "./ui.ts";
 
 /**
  * Shown instead of the app when the page carries no bootstrap data: it was
- * opened from `vite preview`, a saved copy, or a static file server, so there
+ * opened from a saved copy or a static file server, so there
  * is no supervisor (and no token) behind it.
  */
 export function NotServed() {

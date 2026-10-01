@@ -10,7 +10,7 @@ out
 dist
 *.tgz
 
-# SPA build + deps (ui/ is its own package)
+# Leftovers from the old Vite build (the dashboard is now bundled in memory, D-44)
 ui/dist/
 ui/node_modules/
 

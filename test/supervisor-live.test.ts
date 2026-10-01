@@ -261,6 +261,8 @@ describe("a restart in the minute a schedule is due", () => {
       if (!existsSync(join(ws.data, "automations.db"))) return [];
       const db = new Database(join(ws.data, "automations.db"), { readonly: true });
       try {
+        // The file exists a moment before migrations create the table.
+        if (!db.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'runs'").get()) return [];
         return db
           .query<{ f: number }, []>("SELECT json_extract(trigger_meta, '$.fire_at') AS f FROM runs WHERE trigger_kind = 'cron'")
           .all()

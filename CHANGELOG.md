@@ -134,6 +134,13 @@ relative to the earlier internal builds.
 
 ### Changed
 
+- **The supervisor bundles the dashboard itself; there is no UI build step.**
+  `ui/` is bundled in memory with Bun's bundler when the supervisor starts, so
+  a git install (`bun add --global "git+ssh://..."`) serves a working
+  dashboard instead of "UI not built". Vite, `ui/package.json` and `ui/dist`
+  are gone, and the dashboard's dependencies are now part of the one package.
+  For dashboard work, run a scratch supervisor with `AUTO_UI_DEV=1` and reload
+  after edits (no hot module replacement). See D-44.
 - `auto ui` prints the dashboard URL and opens it; there is no sign-in step. It
   exits `3` when the supervisor is unreachable and `0` when only the browser
   opener fails. `auto install` and `auto svc start` print a `Dashboard: <url>`

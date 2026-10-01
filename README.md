@@ -315,7 +315,7 @@ Auto is for one trusted user on one machine. Read [SECURITY.md](SECURITY.md) for
 - **Web pages cannot use it.** A `Host` check blocks DNS rebinding, a present `Origin` must be one of the allowed origins (otherwise `403`, for every method), no response carries CORS headers, every response says `Cross-Origin-Resource-Policy: same-origin` and `Cross-Origin-Opener-Policy: same-origin`, a request that a browser marks as coming from another site and as anything but a top-level navigation (`Sec-Fetch-Site` and `Sec-Fetch-Dest`: a `<script>`, `<img>`, `fetch`) is refused (`403 cross_site`), and the page cannot be framed (`X-Frame-Options: DENY`, CSP `frame-ancestors 'none'`). `auto.localhost` needs no DNS: browsers resolve every `*.localhost` name to loopback themselves, so it cannot be rebound. If a browser or tool on your machine does not resolve it, use `127.0.0.1`.
 - **Requests that came through a proxy are refused.** When the `Host` is one of the built-in loopback names and the request carries any proxy or tunnel header, the answer is `403`. Whole families are matched: every `X-Forwarded-*`, `X-Real-*`, `Cf-*`, `Tailscale-*`, `Ngrok-*` and `X-Envoy-*` header, plus `Forwarded`, `Via`, `Cdn-Loop`, `Client-Ip`, `X-Client-Ip`, `True-Client-Ip`, `Fastly-Client-Ip`, `X-Original-Forwarded-For` and `X-Original-Forwarded-Host`. This is a safety net, not a guarantee: a proxy that rewrites `Host` and adds none of those headers is not detected. Never point a tunnel at `/`; forward only `/hooks/<path>` (see below).
 - **Rotating or revoking the token:** `auto token rotate` writes a new token file, makes the old token stop working immediately, and closes open event streams. Replacing `data/.token` by hand does the same: the supervisor notices the change at the next request, and deleting the file makes it mint a fresh token (a file that does not hold a 64-character hex token is ignored, and the current token stays). Reload open dashboards (the page then embeds the new token); the CLI re-reads the token file by itself. Scripts that cached the token must re-read `data/.token`. The dashboard tells you to reload when it sees the old token rejected.
-- Static file serving is contained under the packaged UI build, and every response carries a strict Content-Security-Policy, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: no-referrer`. The page at `/` is `Cache-Control: no-store`.
+- Only the dashboard bundle (built in memory at start) is served as static files, and every response carries a strict Content-Security-Policy, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: no-referrer`. The page at `/` is `Cache-Control: no-store`.
 - Webhooks use per-trigger HMAC secrets, streamed body-size limits, and content-type allowlists. `/hooks/*` and a minimal `/healthz` are the only routes that skip the `Host` check.
 - Workers run as the current user and have that user's operating-system access, including the token and `secrets.json`.
 - `data/` and its directories are mode `0700`; state files, logs, the token, and `secrets.json` are `0600`. `secrets.json` remains plaintext on disk. Use full-disk encryption and protect backups.
@@ -374,7 +374,7 @@ Other things to know:
 
 ## Upgrade and uninstall
 
-**Upgrade.** Install the new version (`bun add --global auto-supervisor@latest`, or `git pull` in a source checkout), then run `auto install` again. It rewrites the watchdog entry and, in a source checkout, `scripts/auto-install.ts` also refreshes dependencies and the UI build. Restart the supervisor with `auto svc restart` to run the new code. Database migrations are additive and apply at the next supervisor start; a database that has been migrated by a newer Auto is refused by an older one, so back up `data/` before installing an older version. Your configuration and workers are untouched.
+**Upgrade.** Install the new version (`bun add --global auto-supervisor@latest`, or `git pull` in a source checkout), then run `auto install` again. It rewrites the watchdog entry and, in a source checkout, `scripts/auto-install.ts` also refreshes dependencies. Restart the supervisor with `auto svc restart` to run the new code. Database migrations are additive and apply at the next supervisor start; a database that has been migrated by a newer Auto is refused by an older one, so back up `data/` before installing an older version. Your configuration and workers are untouched.
 
 **Uninstall.** Run `auto svc uninstall` to stop the supervisor and remove the OS watchdog. It leaves `data/` and the `auto` shim alone. To remove everything else: delete the shim (`~/.local/bin/auto`) for a source install or run `bun remove --global auto-supervisor`, and delete the workspace (`~/.auto`) if you no longer need the configuration, workers, or history. Back up `data/` first if the history matters.
 
@@ -405,15 +405,22 @@ Webhook trigger fields: `path`, `auth` (`profile`, `secretRef`, `signatureHeader
 
 ```bash
 bun install --frozen-lockfile
-bun install --cwd ui --frozen-lockfile
 bun run verify
-bun run build:ui
 bun pm pack --dry-run
 ```
 
-`bun run verify` runs the root and UI typechecks and the full test suite. The suite starts real supervisors on fixed local ports, so do not run two copies at once. The dashboard can be developed with `bun run --cwd ui dev` (Vite on `:5173`, proxying to a supervisor on the configured port; the dev page embeds the token read from the token file, so keep Vite on localhost and reload the page after a token rotation).
+`bun run verify` runs the root and UI typechecks and the full test suite. The suite starts real supervisors on fixed local ports, so do not run two copies at once.
 
-The root package contains the supervisor and CLI. `ui/` has its own dependency boundary and is bundled into the published package as static assets. See [AGENTS.md](AGENTS.md) for contributor conventions and [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
+There is no build step. The supervisor bundles the dashboard in `ui/` (React and Tailwind) in memory with Bun's bundler when it starts, so a git install serves the dashboard as it is. To work on the dashboard, run a scratch supervisor with `AUTO_UI_DEV=1`; it bundles again after every change under `ui/`, and you reload the page to see it:
+
+```bash
+AUTO_HOME=/tmp/auto-dev bun cli/main.ts init
+AUTO_HOME=/tmp/auto-dev AUTO_PORT=17800 AUTO_UI_DEV=1 bun supervisor/main.ts
+```
+
+Then open `http://127.0.0.1:17800/`. Use a scratch `AUTO_HOME` and port so a development supervisor never shares data or a port with the one you rely on.
+
+The package contains the supervisor, the CLI and the dashboard source. See [AGENTS.md](AGENTS.md) for contributor conventions and [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
 
 This repository contains only the distributable engine and its tests. Live
 configuration, personal workers, secrets, history, and runtime state belong in

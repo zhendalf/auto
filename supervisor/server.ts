@@ -1,6 +1,4 @@
 import type { Database } from "bun:sqlite";
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { resolve } from "node:path";
 
 import type { CronAdapter } from "./adapters/cron.ts";
 import type { ConfigStore } from "./config.ts";
@@ -28,8 +26,9 @@ import { makeJobsHandlers } from "./api/jobs.ts";
 import { makeRunsHandlers } from "./api/runs.ts";
 import { makeTriggersHandlers } from "./api/triggers.ts";
 import { makeConfigHandlers } from "./api/config.ts";
-import { looksLikeFileRequest, resolveStaticFile } from "./static-files.ts";
-import { UI_DIST_DIR } from "../paths.ts";
+import { looksLikeFileRequest } from "./static-files.ts";
+import { bundledUi, type UiBuild, type UiFile, type UiSource } from "./ui-bundle.ts";
+import { UI_SOURCE_DIR } from "../paths.ts";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -44,8 +43,11 @@ export type StartServerOptions = {
   webhookAdapter?: () => WebhookAdapter | null;
   configStore: () => ConfigStore | null;
   port: number;
-  /** Built UI directory. Defaults to the copy shipped with the package. */
-  uiDistDir?: string;
+  /**
+   * The dashboard. Defaults to bundling the package's `ui/` in memory
+   * (rebundled on source changes when AUTO_UI_DEV=1).
+   */
+  ui?: UiSource;
   /** Override token path (tests). */
   tokenPath?: string;
   /** Override data dir (tests). */
@@ -78,8 +80,6 @@ const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024 + 64 * 1024;
  * between pings, so it is raised well above the heartbeat.
  */
 const IDLE_TIMEOUT_S = 60;
-
-const MAX_ASSET_DEPTH = 4;
 
 // The built UI ships one external stylesheet and one module script, so
 // nothing needs `'unsafe-inline'`.
@@ -126,9 +126,10 @@ function hardened(res: Response): Response {
 // ---------------------------------------------------------------------------
 
 export async function startServer(opts: StartServerOptions): Promise<ServerHandle> {
-  const distDir = opts.uiDistDir ?? UI_DIST_DIR;
-  const assetsDir = resolve(distDir, "assets");
-  const indexPath = resolve(distDir, "index.html");
+  const ownUi = opts.ui === undefined;
+  const ui = opts.ui ?? bundledUi(UI_SOURCE_DIR, { watch: process.env.AUTO_UI_DEV === "1" });
+  // Start bundling now so the first page load does not wait for it.
+  void ui.current();
 
   const tokenPath = opts.tokenPath ?? TOKEN_PATH;
   // Streams opened with a token that stops working (rotation, or the token
@@ -321,11 +322,14 @@ export async function startServer(opts: StartServerOptions): Promise<ServerHandl
     // Everything else is a static file or the SPA shell: GET/HEAD only.
     if (req.method !== "GET" && req.method !== "HEAD") return errorJson(405, "method_not_allowed");
 
-    // /assets/* — hashed build output: immutable cache, no SPA fallback.
+    const build = await ui.current();
+
+    // /assets/* — hashed bundle output: immutable cache, no SPA fallback. Only
+    // exact paths the bundler produced exist; nothing is read from disk here.
     if (pathname.startsWith("/assets/")) {
-      const real = resolveStaticFile(assetsDir, pathname.slice("/assets/".length), MAX_ASSET_DEPTH);
-      if (!real) return errorJson(404, "not_found");
-      return fileResponse(real, req.method, "public, max-age=31536000, immutable");
+      const file = build.ok ? build.files.get(pathname) : undefined;
+      if (!file) return errorJson(404, "not_found");
+      return fileResponse(file, req.method, "public, max-age=31536000, immutable");
     }
 
     // Never SPA-fallback this prefix.
@@ -333,23 +337,20 @@ export async function startServer(opts: StartServerOptions): Promise<ServerHandl
       return errorJson(404, "not_found");
     }
 
-    // Root-level files shipped in ui/dist (favicon.svg, ...).
-    if (looksLikeFileRequest(pathname)) {
-      const rel = pathname.slice(1);
-      if (rel !== "index.html") {
-        const real = resolveStaticFile(distDir, rel, 1);
-        if (real) return fileResponse(real, req.method, "public, max-age=3600");
-        // A missing file is a 404, not a page: browsers probing /favicon.ico
-        // must not be handed HTML.
-        return errorJson(404, "not_found");
-      }
+    // Any other bundle output outside /assets/, by exact path.
+    if (looksLikeFileRequest(pathname) && pathname !== "/index.html") {
+      const file = build.ok ? build.files.get(pathname) : undefined;
+      if (file) return fileResponse(file, req.method, "public, max-age=3600");
+      // A missing file is a 404, not a page: browsers probing /favicon.ico
+      // must not be handed HTML.
+      return errorJson(404, "not_found");
     }
 
     // SPA shell + fallback. It embeds the current API token, which is what the
     // dashboard sends as its bearer credential. Only requests with an allowed
     // Host and Origin get here, and the page cannot be framed or read
     // cross-origin (see the response headers).
-    const html = renderSpaShell(indexPath, auth.token, boundPort);
+    const html = renderSpaShell(build, auth.token, boundPort);
     return new Response(req.method === "HEAD" ? null : html, {
       status: 200,
       headers: {
@@ -393,6 +394,7 @@ export async function startServer(opts: StartServerOptions): Promise<ServerHandl
     emit: (event, data) => broadcaster.emit(event, data),
     subscriberCount: () => broadcaster.subscriberCount(),
     stop: async () => {
+      if (ownUi) ui.close();
       await broadcaster.stop();
       try {
         server.stop(true);
@@ -437,58 +439,49 @@ function badHostResponse(req: Request, port: number): Response {
   });
 }
 
-function fileResponse(path: string, method: string, cacheControl: string): Response {
-  const file = Bun.file(path);
+function fileResponse(file: UiFile, method: string, cacheControl: string): Response {
   const headers: Record<string, string> = {
     "Content-Type": file.type,
     "Cache-Control": cacheControl,
+    "Content-Length": String(file.body.byteLength),
   };
-  if (method === "HEAD") {
-    try {
-      headers["Content-Length"] = String(statSync(path).size);
-    } catch {
-      // omit
-    }
-    return new Response(null, { status: 200, headers });
-  }
-  return new Response(file, { status: 200, headers });
+  return new Response(method === "HEAD" ? null : file.body, { status: 200, headers });
 }
 
 // ---------------------------------------------------------------------------
 // HTML shell
 // ---------------------------------------------------------------------------
 
-function renderSpaShell(indexPath: string, token: string, port: number): string {
+function renderSpaShell(build: UiBuild, token: string, port: number): string {
   // The dashboard reads this JSON block for its bearer token. It is a data
   // block (type=application/json), so the CSP's script-src neither blocks nor
   // executes it. `</` is escaped so the JSON can never close its own tag.
   const bootstrap = JSON.stringify({ token, port }).replace(/<\//g, "<\\/");
   const scriptTag = `<script id="auto-bootstrap" type="application/json">${bootstrap}</script>`;
 
-  if (existsSync(indexPath)) {
-    try {
-      return injectBootstrap(readFileSync(indexPath, "utf8"), scriptTag);
-    } catch {
-      // fall through to placeholder
-    }
-  }
+  if (build.ok) return injectBootstrap(build.indexHtml, scriptTag);
 
-  // Placeholder: the UI has not been built. No inline styles (the CSP forbids them).
+  // Placeholder: the dashboard could not be bundled. No inline styles (the CSP forbids them).
   return [
     `<!doctype html>`,
     `<html lang="en"><head>`,
     `<meta charset="utf-8">`,
     `<meta name="viewport" content="width=device-width, initial-scale=1">`,
-    `<title>automations supervisor</title>`,
+    `<title>Auto</title>`,
     scriptTag,
     `</head><body>`,
     `<main>`,
-    `<h1>UI not built yet</h1>`,
-    `<p>Run <code>bun run --cwd ui build</code> to populate <code>ui/dist/</code>.</p>`,
+    `<h1>The dashboard could not be bundled</h1>`,
+    `<pre>${escapeHtml(build.error)}</pre>`,
+    `<p>The same error is in the supervisor's log (<code>auto svc tail</code>). Reinstalling Auto restores missing dependencies.</p>`,
     `<p>The supervisor's API is live at <code>/api/*</code> and the SSE stream at <code>/events</code>.</p>`,
     `</main>`,
     `</body></html>`,
   ].join("\n");
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
 function injectBootstrap(html: string, scriptTag: string): string {

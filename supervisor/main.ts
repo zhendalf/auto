@@ -35,7 +35,7 @@ import { createSafetyNet } from "./safety-net.ts";
 import { JobRegistry } from "./registry.ts";
 import { Runner, type RunFinishedEvent } from "./runner.ts";
 import { startServer, type ServerHandle } from "./server.ts";
-import { AUTO_PORT, ENV_PROBLEM, MIGRATIONS_DIR, UI_DIST_DIR, WORKSPACE_ROOT } from "../paths.ts";
+import { AUTO_PORT, ENV_PROBLEM, MIGRATIONS_DIR, WORKSPACE_ROOT } from "../paths.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -595,7 +595,6 @@ async function main(argv: string[], mainOpts: MainOptions = {}): Promise<number>
       webhookAdapter: () => resources.webhook,
       configStore: () => resources.configStore,
       port: args.port,
-      uiDistDir: UI_DIST_DIR,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

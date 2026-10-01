@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { AuthState, buildHostPolicy, proxiedLoopbackRequest, writeTokenFile } from "../supervisor/auth.ts";
 import { runMigrations } from "../supervisor/db/migrate.ts";
 import { startServer, type ServerHandle } from "../supervisor/server.ts";
+import { staticUi } from "../supervisor/ui-bundle.ts";
 
 // Regression tests: the proxy safety net matches whole header families, a token
 // file replaced or deleted on disk takes effect at once, and /hooks/* answers a
@@ -34,9 +35,6 @@ const bearer = (t: string) => ({ authorization: `Bearer ${t}` });
 
 async function boot(extra: Partial<Parameters<typeof startServer>[0]> = {}) {
   const dir = tmp();
-  const dist = join(dir, "dist");
-  mkdirSync(join(dist, "assets"), { recursive: true });
-  writeFileSync(join(dist, "index.html"), "<!doctype html><html><head><title>t</title></head><body>shell</body></html>");
   const tokenPath = join(dir, ".token");
   const db = new Database(join(dir, "t.db"));
   dbs.push(db);
@@ -48,7 +46,7 @@ async function boot(extra: Partial<Parameters<typeof startServer>[0]> = {}) {
     runner: () => null,
     configStore: () => null,
     port: 0,
-    uiDistDir: dist,
+    ui: staticUi({ "index.html": "<!doctype html><html><head><title>t</title></head><body>shell</body></html>" }),
     tokenPath,
     dataDir: dir,
     heartbeatMs: 60_000,

@@ -166,7 +166,7 @@ historical context.
 
 **Tailwind v4:** keep the setup boring and explicit; avoid leaning on "no config" as a feature. Document any plugins / theme tokens directly.
 
-**Amended by D-28 and D-41:** the bootstrap tag carries `{token, port}` (the token embedding stands; see D-41). The Vite dev plugin injects the same tag from the workspace token file on every page load. The SPA uses a fetch-streaming events client instead of native `EventSource`. The dev command is `bun run --cwd ui dev`.
+**Superseded in part by D-44:** the supervisor now bundles `ui/` itself with Bun's bundler; Vite, `ui/package.json` and `ui/dist` are gone. **Amended by D-28 and D-41:** the bootstrap tag carries `{token, port}` (the token embedding stands; see D-41). The Vite dev plugin injects the same tag from the workspace token file on every page load. The SPA uses a fetch-streaming events client instead of native `EventSource`. The dev command is `bun run --cwd ui dev`.
 
 **Source:** [Q-08](questions/Q-08-spa-build-and-serve.md)
 
@@ -519,7 +519,7 @@ not overwrite one another; concurrent workspaces must use distinct ports.
 **Decision:**
 - **UI events client uses fetch streaming rather than `EventSource`.** It stops on 401 and reports `unauthorized`, supports exponential backoff capped near 30 s with jitter, stall detection at 3 heartbeats, and a `reconnect()` method. Event names are unchanged.
 - **CLI `SSEClient` keeps backward compatibility and is auth-aware.** It still accepts a URL containing `?token=` (older callers), moves the token into the `Authorization` header and strips it from the URL. New optional `token` (string or function) and `heartbeatMs` options exist. `start()` returns a boolean, waits for the first attempt to settle (5 s cap), fires `onOpen` on every (re)connect and resets backoff. A 401/403 stops the client when the token is a fixed string; with a token function it retries, so a rotated token is picked up.
-- **Vite dev server: proxy plus token plugin.** The proxy carries `/api`, `/events` and `/healthz`; `changeOrigin: true` rewrites `Host`, and the `Origin` header is rewritten to the supervisor origin so the dev port never enters the production allowlist. The dev page embeds `{token, port}` through `ui/vite-plugin-auto-token.ts`, which re-reads the workspace token file (`AUTO_DATA_DIR`, else `AUTO_HOME/data/.token`, else `~/.auto/data/.token`) on every page load, so a restart or rotation needs only a reload. `server.cors` is `false`: Vite's default answers any localhost origin with `Access-Control-Allow-Origin`, which would let another local web page read the token from `127.0.0.1:5173`. Vite's default host check already refuses a foreign `Host`. The dev page hands the token to anything that can reach the Vite port, so keep Vite on localhost. Source maps are off.
+- **Vite dev server: proxy plus token plugin** (removed by D-44; the supervisor serves the dev page itself). The proxy carries `/api`, `/events` and `/healthz`; `changeOrigin: true` rewrites `Host`, and the `Origin` header is rewritten to the supervisor origin so the dev port never enters the production allowlist. The dev page embeds `{token, port}` through `ui/vite-plugin-auto-token.ts`, which re-reads the workspace token file (`AUTO_DATA_DIR`, else `AUTO_HOME/data/.token`, else `~/.auto/data/.token`) on every page load, so a restart or rotation needs only a reload. `server.cors` is `false`: Vite's default answers any localhost origin with `Access-Control-Allow-Origin`, which would let another local web page read the token from `127.0.0.1:5173`. Vite's default host check already refuses a foreign `Host`. The dev page hands the token to anything that can reach the Vite port, so keep Vite on localhost. Source maps are off.
 
 **Consequences:** Two clients to keep in step (D-36 removes the last `?token=` URL callers). The client was exercised by hand in a browser but has no automated UI tests.
 
@@ -760,6 +760,22 @@ not overwrite one another; concurrent workspaces must use distinct ports.
 **Consequences:** All API changes are additive (`secret` on `missing_secret` config warnings, `skip_reason: "cancelled"` on cancelled running runs). `auto config status` exit codes and `auto version` status values changed as above. Anyone who relied on `http://[::1]:<port>/` never had a working address.
 
 **Source:** pre-launch polish, last review round.
+
+### 44 — One Bun process: the supervisor bundles the dashboard
+
+**Context:** A git install (`bun add --global "git+ssh://..."`) copies the repository without running `prepack` or installing `ui/`'s dependencies, so the Vite-built `ui/dist` never existed and the dashboard showed "UI not built". Options and measurements are in [Q-20](questions/Q-20-bun-bundled-dashboard.md).
+
+**Decision:**
+- **The supervisor bundles `ui/index.html` itself** with `Bun.build` and `bun-plugin-tailwind`, in memory, starting when the server starts (`supervisor/ui-bundle.ts`). There is no build step, no `ui/dist` and no Vite. The package ships `ui/index.html`, `ui/src` and `ui/tsconfig.json`.
+- **Outputs are served by exact path only.** `/assets/<name>-<hash>.<ext>` is `immutable`; any other path that looks like a file and is not in the bundle is a JSON 404. Nothing under `/` is read from disk per request. The shell keeps the `auto-bootstrap` injection, `no-store` and the CSP from D-41.
+- **A failed bundle does not stop the supervisor.** The error goes to stderr, and `/` serves a placeholder that shows the error and still carries the bootstrap tag.
+- **One package.** React, React DOM, React Router, React Query, Tailwind and `bun-plugin-tailwind` are dependencies of the root package; `@types/react*` are dev dependencies. `ui/package.json`, `ui/bun.lock`, the Vite config, the Vite token plugin and `ui/dev-host.ts` are removed. `bun run typecheck:ui` runs `tsc -p ui/tsconfig.json`.
+- **Dev is `AUTO_UI_DEV=1`.** The supervisor watches `ui/` and bundles again on the next request after a change. No proxy and no second port, so the dev page gets the same Host, Origin and token handling as production.
+- **The favicon is imported** (`ui/src/favicon.svg`), so it is hashed like every other asset; `ui/public/` is gone.
+
+**Consequences:** Supersedes the Vite parts of D-08 and D-28 (proxy, token plugin) and the "separate packages" rule in AGENTS.md. Every install pulls the UI dependencies, including Tailwind's native scanner. Hot module replacement is gone: reload the page after an edit. `test/ui-bundle.test.ts` bundles the real `ui/` so a broken bundle fails the suite. The static-file tests for traversal and symlinks now check that only bundle outputs are served.
+
+**Source:** owner instruction in the publish handoff ("Bun-native", option 2).
 
 ## Open questions
 

@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-/** Files shipped by the package: supervisor code, migrations, and the built UI. */
+/** Files shipped by the package: supervisor code, migrations, and the dashboard source. */
 export const PACKAGE_ROOT = HERE;
 
 // A bad environment must not crash on import: `auto --version` and `--help`
@@ -44,7 +44,8 @@ export function resolveConfigPath(): string {
 }
 
 export const CONFIG_PATH = resolveConfigPath();
-export const UI_DIST_DIR = resolve(PACKAGE_ROOT, "ui", "dist");
+/** Dashboard source; the supervisor bundles it in memory at startup (D-44). */
+export const UI_SOURCE_DIR = resolve(PACKAGE_ROOT, "ui");
 export const MIGRATIONS_DIR = resolve(PACKAGE_ROOT, "supervisor", "db", "migrations");
 
 function configuredPort(): number {

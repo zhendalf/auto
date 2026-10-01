@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { devServerExposed, isLoopbackHostHeader } from "../ui/dev-host.ts";
 import { DEFAULT_LIMITS, LogFollower } from "../ui/src/util/logFollower.ts";
 import type { LogSource } from "../ui/src/util/logFollower.ts";
 import { ApiError, staleAction } from "../ui/src/util/errors.ts";
@@ -138,25 +137,5 @@ describe("staleAction", () => {
   test("otherwise Retry", () => {
     expect(staleAction(new ApiError(500, null), "open")).toBe("retry");
     expect(staleAction(new ApiError(0, null), "connecting")).toBe("retry");
-  });
-});
-
-describe("dev server host checks", () => {
-  test("only loopback Host headers are served", () => {
-    for (const ok of ["127.0.0.1:5173", "localhost:5173", "[::1]:5173", "app.localhost:5173", "LOCALHOST", "127.0.0.1"]) {
-      expect(isLoopbackHostHeader(ok)).toBe(true);
-    }
-    for (const bad of ["192.168.1.50:5173", "evil.example", "10.0.0.1", "127.0.0.1.evil.example:5173", undefined, ""]) {
-      expect(isLoopbackHostHeader(bad)).toBe(false);
-    }
-  });
-
-  test("server.host beyond loopback marks the dev server as exposed", () => {
-    expect(devServerExposed(undefined)).toBe(false);
-    expect(devServerExposed("127.0.0.1")).toBe(false);
-    expect(devServerExposed("localhost")).toBe(false);
-    expect(devServerExposed(true)).toBe(true);
-    expect(devServerExposed("0.0.0.0")).toBe(true);
-    expect(devServerExposed("192.168.1.50")).toBe(true);
   });
 });

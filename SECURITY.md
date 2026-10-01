@@ -21,7 +21,7 @@ This is a deliberate ergonomic choice by the project owner: opening `http://127.
 **Consequence: anything that can open a TCP connection to `127.0.0.1:<port>` can `GET /` with an allowed `Host` header and read the token.** That includes every process and every user account on the machine, which makes the page weaker than the `0600` token file (other accounts cannot read the file, but they can reach the port). Therefore:
 
 - Run Auto only on a machine you alone use. Do not run it on a shared or multi-user host, or inside a container or VM whose loopback is shared with other tenants.
-- Never expose the port beyond loopback: no port forward, no `0.0.0.0` proxy in front of it, no tunnel that forwards `/`. The Vite dev server (`bun run --cwd ui dev`) is loopback-only too: it answers only loopback `Host` names and stops injecting the token if started with `--host`.
+- Never expose the port beyond loopback: no port forward, no `0.0.0.0` proxy in front of it, no tunnel that forwards `/`.
 - Treat the token like a password: it grants full control (run, cancel and pause jobs, reload config, rotate the token). The config file and workers already run as your user, so this control is equivalent to running code as you.
 
 ### What Auto defends against

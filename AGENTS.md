@@ -96,13 +96,15 @@ reading or running the code and fix the document.
   are 1 to 64 characters (letters, digits, space, `.`, `_`, `-`); `:` and `/`
   are rejected because trigger ids are `<name>:<trigger id>` and names appear
   in URLs.
-- No third-party deps beyond the locked stack:
-  - **Supervisor + CLI** (root `package.json`): `zod`, `commander`, `prompts`,
-    `picocolors`, `@types/prompts`.
-  - **UI** (`ui/package.json` only, never the root): `react`, `react-dom`,
-    `react-router-dom`, `@tanstack/react-query`, `vite`, `@vitejs/plugin-react`,
-    `tailwindcss`, `@tailwindcss/vite`.
-  Don't add a UI dep to the root package or vice versa.
+- No third-party deps beyond the locked stack, all in the one root
+  `package.json` (D-44):
+  - **Supervisor + CLI:** `zod`, `commander`, `prompts`, `picocolors`,
+    `@types/prompts`.
+  - **Dashboard** (bundled by the supervisor at start): `react`, `react-dom`,
+    `react-router-dom`, `@tanstack/react-query`, `tailwindcss`,
+    `bun-plugin-tailwind`, `@types/react`, `@types/react-dom`.
+  Supervisor and CLI code never imports the dashboard libraries; only
+  `supervisor/ui-bundle.ts` touches the Tailwind plugin.
 - `node:fs.watch` over chokidar. `Bun.spawn` over `node:child_process`.
 - Comments describe the code as it is now; don't reference build phases or
   waves.
@@ -242,9 +244,11 @@ add a variable the supervisor needs after a reboot, add it to
     `{ok, degraded}` (200 or 503).
   - `/hooks/:path`: trigger-specific HMAC-authenticated webhook ingress
     ([supervisor/adapters/webhook.ts](supervisor/adapters/webhook.ts)).
-  - `/assets/*`, `/` and root-level `ui/dist` files: static, served through
-    realpath containment ([supervisor/static-files.ts](supervisor/static-files.ts)).
-    Misses on paths with a file extension are 404 JSON, never the SPA shell,
+  - `/assets/*` and `/`: the dashboard, bundled in memory from `ui/` when the
+    server starts ([supervisor/ui-bundle.ts](supervisor/ui-bundle.ts)). Only
+    exact bundle output paths are served; nothing is read from disk per
+    request. Misses on paths with a file extension
+    ([supervisor/static-files.ts](supervisor/static-files.ts)) are 404 JSON, never the SPA shell,
     except under `/jobs/` and `/runs/`: job names may contain `.` (a job named
     `export.json` is valid), so those client-side routes always get the shell.
     `/api` never falls back to the shell; every other extensionless path does.
@@ -342,7 +346,8 @@ Reloads are serialized and coalesced. Keep the loader's output contract
 
 ### UI
 
-- React 19 + Tailwind v4 + Vite 7 + React Query 5. Tailwind v4 uses `@theme`
+- React 19 + Tailwind v4 + React Query 5, bundled by Bun (`Bun.build` +
+  `bun-plugin-tailwind`) inside the supervisor; there is no build step. Tailwind v4 uses `@theme`
   blocks in CSS; there is NO `tailwind.config.js`. Colors are semantic CSS
   variables with a light and a dark set; `test/ui-contrast.test.ts` asserts
   the contrast ratios.
@@ -361,17 +366,14 @@ Reloads are serialized and coalesced. Keep the loader's output contract
   in `ui/src/util/` (pure, unit-tested from the root suite).
 - No icon libraries, no `clsx`, no `date-fns`. Tailwind classes inline; dates
   via `Intl.DateTimeFormat`.
-- Dev: `bun run --cwd ui dev` (Vite on `:5173`). It proxies `/api`, `/events`
-  and `/healthz` to the supervisor on `AUTO_PORT` (rewriting `Host` and
-  `Origin` so the supervisor's allowlist needs no dev port).
-  `ui/vite-plugin-auto-token.ts` injects `{token, port}` into the dev page,
-  re-reading the workspace token file on every page load. Vite must stay on
-  localhost: a middleware answers 403 to any non-loopback `Host`, and with
-  `server.host` beyond loopback (`--host`) the token is not injected at all
-  (`ui/dev-host.ts`). `server.cors` is off so another local origin cannot read
-  that page.
-- The built bundle must have no inline scripts or styles (the CSP forbids
-  them) and no source maps.
+- Dev: run a scratch supervisor with `AUTO_UI_DEV=1` (see README,
+  "Develop"). It watches `ui/` and bundles again on the next request after a
+  change; reload the page to see an edit. There is no separate dev server.
+- Assets are imported (`import url from "../favicon.svg"`), never linked by
+  absolute path, so they are hashed under `/assets/`.
+- The bundle must have no inline scripts or styles (the CSP forbids them) and
+  no source maps. `test/ui-bundle.test.ts` bundles the real `ui/` and checks
+  this.
 
 ### Tests
 
@@ -397,8 +399,7 @@ Reloads are serialized and coalesced. Keep the loader's output contract
 
 - `bunx tsc --noEmit` after any backend/CLI change (the root project excludes
   `ui/`, but tests are included, so tests may only import DOM-free UI files).
-- `bun run --cwd ui typecheck` after any UI change. (`bun --cwd ui run ...` no
-  longer works on Bun 1.4.) The UI has its own tsconfig with
+- `bun run typecheck:ui` after any UI change. The UI has its own tsconfig with
   `lib: ["DOM", "DOM.Iterable", "ESNext"]` and `react-jsx`.
 - `bun run verify` runs both plus the full test suite.
 

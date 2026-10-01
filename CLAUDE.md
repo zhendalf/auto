@@ -15,13 +15,14 @@ AGENTS.md.
 - Source folders: `supervisor/`, `cli/`, `ui/`, `scripts/`, `design/`, and
   `test/`. Live configuration and personal workers are under `~/.auto/`,
   outside this engine repository.
-- Two packages: root (supervisor + CLI) and `ui/` (separate
-  `package.json`; React 19 + Tailwind v4 + Vite 7 + React Query 5).
+- One package. The supervisor bundles the dashboard in `ui/` (React 19 +
+  Tailwind v4 + React Query 5) in memory with `Bun.build` when it starts;
+  there is no build step and no `ui/dist` (D-44).
 - Green bar = `bunx tsc --noEmit` (root, excludes `ui/`) AND
-  `bun run --cwd ui typecheck` AND `bun test`. `bun run verify` runs all
+  `bun run typecheck:ui` AND `bun test`. `bun run verify` runs all
   three. Don't quote a test count in docs; it changes.
-- CI (`.github/workflows/ci.yml`) runs the same on macOS, plus the UI build
-  and `bun pm pack --dry-run`.
+- CI (`.github/workflows/ci.yml`) runs the same on macOS, plus
+  `bun pm pack --dry-run`. `test/ui-bundle.test.ts` bundles the real UI.
 
 ## Useful commands
 
@@ -29,9 +30,8 @@ AGENTS.md.
 bun test                          # full suite (backend, CLI, pure UI helpers)
 bun run verify                    # root tsc + ui tsc + tests
 bunx tsc --noEmit                 # root tsc (excludes ui/)
-bun run --cwd ui typecheck        # ui tsc
-bun run --cwd ui dev              # vite :5173 (proxies to the supervisor)
-bun run build:ui                  # produces ui/dist/
+bun run typecheck:ui              # ui tsc (ui/tsconfig.json)
+AUTO_UI_DEV=1 bun supervisor/main.ts   # with a scratch AUTO_HOME/AUTO_PORT: rebundles ui/ on change
 bun pm pack --dry-run             # what the package would contain
 
 auto svc tail                     # follow data/state/supervisor.log
@@ -118,9 +118,9 @@ explicitly first.
   sends it as a bearer (no cookies, by owner decision); the CLI reads the
   token file. Don't weaken the Host/Origin/proxy gates in
   [supervisor/server.ts](supervisor/server.ts).
-- Don't introduce a UI dep into the root `package.json`, or a
-  supervisor/CLI dep into `ui/package.json`. They are separate
-  packages on purpose.
+- Don't import the dashboard libraries (React, Tailwind) from supervisor or
+  CLI code; only `supervisor/ui-bundle.ts` hands `ui/` to the bundler.
+  Record any new dependency and why (D-44 lists the current set).
 - Don't invent repository, homepage, author or contact values in
   `package.json`, README or SECURITY.md; leave them for the owner.
 

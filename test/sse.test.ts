@@ -11,6 +11,7 @@ import { Runner } from "../supervisor/runner.ts";
 import { CronAdapter } from "../supervisor/adapters/cron.ts";
 import { ConfigStore } from "../supervisor/config.ts";
 import { startServer, type ServerHandle } from "../supervisor/server.ts";
+import { staticUi } from "../supervisor/ui-bundle.ts";
 import type { Automation, Config } from "../supervisor/config.ts";
 import { SSEBroadcaster } from "../supervisor/sse.ts";
 import { SSEClient, type SSEHttpError } from "../cli/sse.ts";
@@ -81,7 +82,7 @@ async function setup(heartbeatMs?: number, extra: Partial<Parameters<typeof star
     runner: () => runner,
     configStore: () => configStore,
     port: 0,
-    uiDistDir: resolve(REPO_ROOT, "ui", "dist"),
+    ui: staticUi({ "index.html": "<!doctype html><html><head></head><body></body></html>" }),
     tokenPath,
     dataDir,
     heartbeatMs,

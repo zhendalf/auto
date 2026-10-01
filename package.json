@@ -22,7 +22,9 @@
   "files": [
     "cli",
     "supervisor",
-    "ui/dist",
+    "ui/index.html",
+    "ui/src",
+    "ui/tsconfig.json",
     "index.ts",
     "paths.ts",
     "README.md",
@@ -47,21 +49,29 @@
   },
   "scripts": {
     "typecheck": "bunx tsc --noEmit",
+    "typecheck:ui": "bunx tsc --noEmit -p ui/tsconfig.json",
     "typecheck:package": "bunx tsc --noEmit -p tsconfig.package.json",
-    "build:ui": "bun run --cwd ui build",
-    "verify": "bun run typecheck && bun run --cwd ui typecheck && bun test",
+    "verify": "bun run typecheck && bun run typecheck:ui && bun test",
     "test:package": "bun test",
-    "verify:package": "bun run typecheck:package && bun run --cwd ui typecheck && bun run test:package",
-    "prepack": "bun run build:ui && bun run verify:package"
+    "verify:package": "bun run typecheck:package && bun run typecheck:ui && bun run test:package",
+    "prepack": "bun run verify:package"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/prompts": "^2.4.9"
+    "@types/prompts": "^2.4.9",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.100.6",
+    "bun-plugin-tailwind": "^0.1.2",
     "commander": "^14.0.3",
     "picocolors": "^1.1.1",
     "prompts": "^2.4.2",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router-dom": "^7.14.2",
+    "tailwindcss": "^4.2.4",
     "zod": "^4.4.1"
   }
 }

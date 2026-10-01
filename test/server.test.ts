@@ -12,6 +12,7 @@ import { Runner } from "../supervisor/runner.ts";
 import { CronAdapter } from "../supervisor/adapters/cron.ts";
 import { ConfigStore } from "../supervisor/config.ts";
 import { startServer, type ServerHandle } from "../supervisor/server.ts";
+import { staticUi } from "../supervisor/ui-bundle.ts";
 import type { Automation, Config } from "../supervisor/config.ts";
 import type { RunFinishedEvent } from "../supervisor/runner.ts";
 
@@ -88,7 +89,7 @@ async function setup(): Promise<Ctx> {
     runner: () => runner,
     configStore: () => configStore,
     port: 0,
-    uiDistDir: resolve(REPO_ROOT, "ui", "dist"),
+    ui: staticUi({ "index.html": "<!doctype html><html><head></head><body></body></html>" }),
     tokenPath,
     dataDir,
     heartbeatMs: 10_000,

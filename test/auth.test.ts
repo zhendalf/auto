@@ -16,6 +16,7 @@ import { join } from "node:path";
 
 import { runMigrations } from "../supervisor/db/migrate.ts";
 import { startServer, type ServerHandle } from "../supervisor/server.ts";
+import { staticUi, type UiSource } from "../supervisor/ui-bundle.ts";
 import {
   AuthState,
   buildHostPolicy,
@@ -217,8 +218,7 @@ describe("token file", () => {
 
 type Boot = {
   tmp: string;
-  dist: string;
-  outside: string;
+  ui: UiSource;
   tokenPath: string;
   db: Database;
   server: ServerHandle;
@@ -230,19 +230,12 @@ let boot: Boot | null = null;
 
 async function start(extra: Partial<Parameters<typeof startServer>[0]> = {}): Promise<Boot> {
   const tmp = mkdtempSync(join(tmpdir(), "auth-server-"));
-  const dist = join(tmp, "dist");
-  const outside = join(tmp, "outside");
-  mkdirSync(join(dist, "assets"), { recursive: true });
-  mkdirSync(outside);
-  writeFileSync(join(dist, "index.html"), `<!doctype html><html><head><title>t</title></head><body>shell</body></html>`);
-  writeFileSync(join(dist, "favicon.svg"), `<svg xmlns="http://www.w3.org/2000/svg"/>`);
-  writeFileSync(join(dist, "logo..v2.svg"), `<svg xmlns="http://www.w3.org/2000/svg"/>`);
-  writeFileSync(join(dist, "assets", "app.js"), `console.log(1)`);
-  writeFileSync(join(outside, "secret.txt"), "top secret");
-  symlinkSync(join(outside, "secret.txt"), join(dist, "leak.svg"));
-  symlinkSync(join(outside, "secret.txt"), join(dist, "assets", "leak.js"));
-  symlinkSync(outside, join(dist, "assets", "linkdir"));
-
+  const ui = staticUi({
+    "index.html": `<!doctype html><html><head><title>t</title></head><body>shell</body></html>`,
+    "favicon.svg": `<svg xmlns="http://www.w3.org/2000/svg"/>`,
+    "logo..v2.svg": `<svg xmlns="http://www.w3.org/2000/svg"/>`,
+    "assets/app.js": `console.log(1)`,
+  });
   const tokenPath = join(tmp, ".token");
   const db = new Database(join(tmp, "test.db"));
   db.run("PRAGMA foreign_keys = ON;");
@@ -254,13 +247,13 @@ async function start(extra: Partial<Parameters<typeof startServer>[0]> = {}): Pr
     runner: () => null,
     configStore: () => null,
     port: 0,
-    uiDistDir: dist,
+    ui,
     tokenPath,
     dataDir: tmp,
     heartbeatMs: 60_000,
     ...extra,
   });
-  boot = { tmp, dist, outside, tokenPath, db, server, port: server.port, base: `http://127.0.0.1:${server.port}` };
+  boot = { tmp, ui, tokenPath, db, server, port: server.port, base: `http://127.0.0.1:${server.port}` };
   return boot;
 }
 
@@ -357,10 +350,11 @@ describe("the dashboard page", () => {
     expect(text.indexOf("auto-bootstrap")).toBeLessThan(text.indexOf("</head>"));
   });
 
-  test("the placeholder page (UI not built) embeds the token too", async () => {
-    const b = await start({ uiDistDir: join(tmpdir(), `auth-no-dist-${process.pid}-${Date.now()}`) });
-    const boot = bootstrapOf(await (await fetch(`${b.base}/`)).text());
-    expect(boot.token).toBe(b.server.token);
+  test("the placeholder page (dashboard not bundled) embeds the token too", async () => {
+    const b = await start({ ui: staticUi({}) });
+    const page = await (await fetch(`${b.base}/`)).text();
+    expect(page).toContain("could not be bundled");
+    expect(bootstrapOf(page).token).toBe(b.server.token);
   });
 
   test("the page is never cached and no cookie is ever set", async () => {
@@ -637,7 +631,7 @@ describe("token rotation", () => {
       runner: () => null,
       configStore: () => null,
       port: 0,
-      uiDistDir: b.dist,
+      ui: b.ui,
       tokenPath: b.tokenPath,
       dataDir: b.tmp,
       heartbeatMs: 60_000,
@@ -767,7 +761,7 @@ describe("response hardening", () => {
 });
 
 describe("static files", () => {
-  test("serves root-level files in dist with the right type", async () => {
+  test("serves root-level bundle files with the right type", async () => {
     const b = await start();
     const res = await fetch(`${b.base}/favicon.svg`);
     expect(res.status).toBe(200);
@@ -810,17 +804,23 @@ describe("static files", () => {
     expect(res.headers.get("content-type") ?? "").toContain("text/html");
   });
 
-  test("symlinks that escape the dist root are refused", async () => {
+  test("only bundle outputs are served, never files from disk", async () => {
     const b = await start();
-    expect((await fetch(`${b.base}/leak.svg`)).status).toBe(404);
-    expect((await fetch(`${b.base}/assets/leak.js`)).status).toBe(404);
-    expect((await fetch(`${b.base}/assets/linkdir/secret.txt`)).status).toBe(404);
+    writeFileSync(join(b.tmp, "secret.js"), "nope");
+    for (const path of ["/secret.js", "/assets/secret.js", "/src/main.js", "/package.json", "/assets/app.js/x"]) {
+      const res = await fetch(`${b.base}${path}`);
+      expect(res.status).toBe(404);
+      expect(await res.text()).not.toContain("nope");
+    }
+    // A path that does not look like a file is a client-side route: the shell, never source.
+    const route = await fetch(`${b.base}/src/main.tsx`);
+    expect(await route.text()).toContain('id="auto-bootstrap"');
   });
 
   test("traversal attempts under /assets are refused", async () => {
     const b = await start();
-    writeFileSync(join(b.dist, "index-secret.js"), "nope");
-    for (const target of ["/assets/..%2findex-secret.js", "/assets/%2e%2e%2findex-secret.js", "/assets/..%5cindex-secret.js", "/assets/a%00b.js"]) {
+    writeFileSync(join(b.tmp, "index-secret.js"), "nope");
+    for (const target of ["/assets/..%2findex-secret.js", "/assets/%2e%2e%2findex-secret.js", "/assets/..%5cindex-secret.js", "/assets/a%00b.js", "/assets/../app.js"]) {
       const res = await raw(b.port, `GET ${target} HTTP/1.1\r\nHost: 127.0.0.1:${b.port}\r\nConnection: close\r\n\r\n`);
       expect(res).toContain(" 404 ");
       expect(res).not.toContain("nope");
@@ -1001,7 +1001,7 @@ describe("hardening added after the review", () => {
         runner: () => null,
         configStore: () => null,
         port: b.port,
-        uiDistDir: b.dist,
+        ui: b.ui,
         tokenPath: join(b.tmp, "second.token"),
         dataDir: b.tmp,
         heartbeatMs: 60_000,

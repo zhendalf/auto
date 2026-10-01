@@ -14,6 +14,7 @@ import { WebhookAdapter } from "../supervisor/adapters/webhook.ts";
 import { SecretStore } from "../supervisor/secrets.ts";
 import { ConfigStore } from "../supervisor/config.ts";
 import { startServer, type ServerHandle } from "../supervisor/server.ts";
+import { staticUi } from "../supervisor/ui-bundle.ts";
 import { makeJobsHandlers } from "../supervisor/api/jobs.ts";
 import { makeTriggersHandlers } from "../supervisor/api/triggers.ts";
 import type { Automation, Config } from "../supervisor/config.ts";
@@ -135,7 +136,7 @@ async function setup(): Promise<Ctx> {
     webhookAdapter: () => webhook,
     configStore: () => store,
     port: 0,
-    uiDistDir: resolve(REPO_ROOT, "ui", "dist"),
+    ui: staticUi({ "index.html": "<!doctype html><html><head></head><body></body></html>" }),
     tokenPath: join(tmp, ".token"),
     dataDir: tmp,
     heartbeatMs: 10_000,

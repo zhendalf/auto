@@ -30,28 +30,22 @@ jobs:
       - name: Bun version
         run: bun --version
 
-      - name: Install root dependencies
+      - name: Install dependencies
         run: bun install --frozen-lockfile
-
-      - name: Install UI dependencies
-        run: bun install --frozen-lockfile
-        working-directory: ui
 
       - name: Typecheck (supervisor, CLI, tests)
         run: bun run typecheck
 
       - name: Typecheck (UI)
-        run: bun run --cwd ui typecheck
+        run: bun run typecheck:ui
 
       # The suite starts real supervisors on fixed local ports, so it is not
       # run in parallel with anything else on the runner.
       - name: Test
         run: bun test
 
-      - name: Build UI
-        run: bun run build:ui
-
-      # `bun pm pack` runs the prepack script (UI build and the full
-      # verification again), so this doubles as a packaging check.
+      # `bun pm pack` runs the prepack script (the full verification again),
+      # so this doubles as a packaging check. The dashboard is bundled by the
+      # test suite (test/ui-bundle.test.ts), not by a build step.
       - name: Check the package contents
         run: bun pm pack --dry-run
